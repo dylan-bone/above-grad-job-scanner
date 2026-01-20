@@ -26,8 +26,16 @@ LESS_TITLE_KEYWORDS = [
 ]
 
 SENIOR_EXCLUDE_KEYWORDS = [
-    "senior", "lead", "manager", "principal", "head", "director", "vp",
-    "vice president", "chief"
+    # explicit seniority
+    "senior", "sr", "lead", "manager", "principal", "head", "director", "vp",
+    "vice president", "chief", "cmo", "cto", "cfo",
+
+    # common “not-grad” titles that often slip through
+    "product owner", "product manager", "programme manager", "program manager",
+    "consultant", "specialist", "partner", "architect",
+
+    # tech leveling
+    "staff", "ii", "iii", "iv"
 ]
 
 
