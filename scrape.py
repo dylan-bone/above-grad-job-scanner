@@ -76,29 +76,76 @@ def bucket_job(title: str, location: str, description_text: str) -> tuple[str, s
     bucket = EXCLUDE | IGNORE | HIGH | LESS
     """
     title_l = (title or "").lower()
+    desc_l = (description_text or "").lower()
 
-    # Exclude obvious senior titles
-    if contains_any(title_l, SENIOR_EXCLUDE_KEYWORDS):
-        return "EXCLUDE", "Senior keyword in title"
-
-    # UK-only filter
+    # 1) UK-only filter
     if not is_uk(location):
         return "IGNORE", "Not UK location"
 
-    # Exclude obvious senior experience (5+)
-    y_min, _y_max = extract_years(description_text or "")
+    # 2) Hard exclude: senior-ish title keywords
+    if contains_any(title_l, SENIOR_EXCLUDE_KEYWORDS):
+        return "EXCLUDE", "Senior keyword in title"
+
+    # 3) Parse years and exclude 5+
+    y_min, y_max = extract_years(desc_l)
     if y_min is not None and y_min >= 5:
         return "EXCLUDE", "5+ years mentioned"
 
-    # Bucket by title signals
+    # 4) Senior-ish language in description: never HIGH (and sometimes exclude)
+    senior_desc_hit = any(p in desc_l for p in SENIOR_DESC_EXCLUDE_PHRASES)
+    if senior_desc_hit and (y_min is not None and y_min >= 3):
+        return "EXCLUDE", "Senior language + 3+ years"
+
+    # 5) Tiny score model
+    score = 0
+    reasons = []
+
+    # Strong junior title signals
     if contains_any(title_l, HIGH_TITLE_KEYWORDS):
-        return "HIGH", "Strong junior keyword in title"
+        score += 3
+        reasons.append("junior keyword in title")
 
+    # Stealth junior titles: reduce weight (these were pushing too many up)
     if contains_any(title_l, LESS_TITLE_KEYWORDS):
-        return "LESS", "Stealth junior keyword in title"
+        score += 1
+        reasons.append("stealth junior title")
 
-    # Keep as LESS so you can review (MVP behaviour)
-    return "LESS", "No strong signal (kept for review)"
+    # Years: only treat <=2 as a strong positive
+    if y_max is not None and y_max <= 2:
+        score += 2
+        reasons.append("<=2 years mentioned")
+
+    if y_min is not None and y_min <= 2:
+        score += 1
+        reasons.append("low minimum years")
+
+    # Internship/early-career language helps keep “experience required” roles
+    if any(x in desc_l for x in ["internship", "placement", "part-time", "part time", "volunteer", "university project", "early career", "recent graduate"]):
+        score += 1
+        reasons.append("intern/early-career language")
+
+    # Penalise likely mid-level
+    if y_min is not None and y_min >= 3 and y_min < 5:
+        score -= 3
+        reasons.append("3+ years mentioned")
+
+    if senior_desc_hit:
+        score -= 3
+        reasons.append("senior language in description")
+
+    # 6) Buckets with a hard safety rule:
+    # HIGH must have a strong junior signal AND must not look senior-ish
+    strong_junior = (
+        contains_any(title_l, HIGH_TITLE_KEYWORDS)
+        or (y_max is not None and y_max <= 2)
+        or ("early career" in desc_l)
+        or ("recent graduate" in desc_l)
+    )
+
+    if score >= 4 and strong_junior and not senior_desc_hit:
+        return "HIGH", " | ".join(reasons) or "high score"
+    else:
+        return "LESS", " | ".join(reasons) or "kept for review"
 
 
 # ---------------------------
