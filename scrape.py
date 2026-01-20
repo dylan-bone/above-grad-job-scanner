@@ -88,6 +88,7 @@ def bucket_job(title: str, location: str, description_text: str) -> tuple[str, s
 
     # 3) Parse years and exclude 5+
     y_min, y_max = extract_years(desc_l)
+    no_years_mentioned = (y_min is None and y_max is None)
     if y_min is not None and y_min >= 5:
         return "EXCLUDE", "5+ years mentioned"
 
@@ -124,6 +125,12 @@ def bucket_job(title: str, location: str, description_text: str) -> tuple[str, s
         score += 1
         reasons.append("intern/early-career language")
 
+    # If no experience years are mentioned, treat that as a mild positive
+# BUT only if we already see junior cues and no senior-ish language.
+if no_years_mentioned:
+    score += 1
+    reasons.append("no years mentioned")
+
     # Penalise likely mid-level
     if y_min is not None and y_min >= 3 and y_min < 5:
         score -= 3
@@ -135,12 +142,14 @@ def bucket_job(title: str, location: str, description_text: str) -> tuple[str, s
 
     # 6) Buckets with a hard safety rule:
     # HIGH must have a strong junior signal AND must not look senior-ish
-    strong_junior = (
-        contains_any(title_l, HIGH_TITLE_KEYWORDS)
-        or (y_max is not None and y_max <= 2)
-        or ("early career" in desc_l)
-        or ("recent graduate" in desc_l)
-    )
+   strong_junior = (
+    contains_any(title_l, HIGH_TITLE_KEYWORDS)
+    or (y_max is not None and y_max <= 2)
+    or ("early career" in desc_l)
+    or ("recent graduate" in desc_l)
+    or (no_years_mentioned and contains_any(title_l, HIGH_TITLE_KEYWORDS + LESS_TITLE_KEYWORDS))
+)
+
 
     if score >= 4 and strong_junior and not senior_desc_hit:
         return "HIGH", " | ".join(reasons) or "high score"
