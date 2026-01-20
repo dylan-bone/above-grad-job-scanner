@@ -89,29 +89,27 @@ def bucket_job(title: str, location: str, description_text: str) -> tuple[str, s
     # 3) Parse years and exclude 5+
     y_min, y_max = extract_years(desc_l)
     no_years_mentioned = (y_min is None and y_max is None)
+
     if y_min is not None and y_min >= 5:
         return "EXCLUDE", "5+ years mentioned"
 
-    # 4) Senior-ish language in description: never HIGH (and sometimes exclude)
+    # 4) Senior-ish language in description
     senior_desc_hit = any(p in desc_l for p in SENIOR_DESC_EXCLUDE_PHRASES)
     if senior_desc_hit and (y_min is not None and y_min >= 3):
         return "EXCLUDE", "Senior language + 3+ years"
 
-    # 5) Tiny score model
+    # 5) Scoring
     score = 0
     reasons = []
 
-    # Strong junior title signals
     if contains_any(title_l, HIGH_TITLE_KEYWORDS):
         score += 3
         reasons.append("junior keyword in title")
 
-    # Stealth junior titles: reduce weight (these were pushing too many up)
     if contains_any(title_l, LESS_TITLE_KEYWORDS):
         score += 1
         reasons.append("stealth junior title")
 
-    # Years: only treat <=2 as a strong positive
     if y_max is not None and y_max <= 2:
         score += 2
         reasons.append("<=2 years mentioned")
@@ -120,19 +118,18 @@ def bucket_job(title: str, location: str, description_text: str) -> tuple[str, s
         score += 1
         reasons.append("low minimum years")
 
-    # Internship/early-career language helps keep “experience required” roles
-    if any(x in desc_l for x in ["internship", "placement", "part-time", "part time", "volunteer", "university project", "early career", "recent graduate"]):
+    if any(x in desc_l for x in [
+        "internship", "placement", "part-time", "part time",
+        "volunteer", "university project", "early career", "recent graduate"
+    ]):
         score += 1
         reasons.append("intern/early-career language")
 
-    # If no experience years are mentioned, treat that as a mild positive
-# BUT only if we already see junior cues and no senior-ish language.
-if no_years_mentioned:
-    score += 1
-    reasons.append("no years mentioned")
+    if no_years_mentioned:
+        score += 1
+        reasons.append("no years mentioned")
 
-    # Penalise likely mid-level
-    if y_min is not None and y_min >= 3 and y_min < 5:
+    if y_min is not None and 3 <= y_min < 5:
         score -= 3
         reasons.append("3+ years mentioned")
 
@@ -140,21 +137,19 @@ if no_years_mentioned:
         score -= 3
         reasons.append("senior language in description")
 
-    # 6) Buckets with a hard safety rule:
-    # HIGH must have a strong junior signal AND must not look senior-ish
-   strong_junior = (
-    contains_any(title_l, HIGH_TITLE_KEYWORDS)
-    or (y_max is not None and y_max <= 2)
-    or ("early career" in desc_l)
-    or ("recent graduate" in desc_l)
-    or (no_years_mentioned and contains_any(title_l, HIGH_TITLE_KEYWORDS + LESS_TITLE_KEYWORDS))
-)
-
+    # 6) Gate HIGH very strictly
+    strong_junior = (
+        contains_any(title_l, HIGH_TITLE_KEYWORDS)
+        or (y_max is not None and y_max <= 2)
+        or "early career" in desc_l
+        or "recent graduate" in desc_l
+        or (no_years_mentioned and contains_any(title_l, HIGH_TITLE_KEYWORDS))
+    )
 
     if score >= 4 and strong_junior and not senior_desc_hit:
-        return "HIGH", " | ".join(reasons) or "high score"
-    else:
-        return "LESS", " | ".join(reasons) or "kept for review"
+        return "HIGH", " | ".join(reasons)
+
+    return "LESS", " | ".join(reasons) or "kept for review"
 
 
 # ---------------------------
