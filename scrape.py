@@ -93,10 +93,12 @@ def bucket_job(title: str, location: str, description_text: str) -> tuple[str, s
     if y_min is not None and y_min >= 5:
         return "EXCLUDE", "5+ years mentioned"
 
-    # 4) Senior-ish language in description
-    senior_desc_hit = any(p in desc_l for p in SENIOR_DESC_EXCLUDE_PHRASES)
-    if senior_desc_hit and (y_min is not None and y_min >= 3):
-        return "EXCLUDE", "Senior language + 3+ years"
+    # 4) Senior-ish language in description (signal only for MVP)
+senior_desc_hit = any(p in desc_l for p in SENIOR_DESC_EXCLUDE_PHRASES)
+
+# Don't exclude for this in MVP (too strict). We'll just block HIGH later.
+# if senior_desc_hit and (y_min is not None and y_min >= 3):
+#     return "EXCLUDE", "Senior language + 3+ years"
 
     # 5) Scoring
     score = 0
