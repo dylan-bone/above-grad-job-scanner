@@ -326,7 +326,6 @@ def main():
         emp_type = emp["type"]
         emp_url = emp["url"]
 
-        try:
             if emp_type == "pinpoint":
                 jobs = scrape_pinpoint(emp_url)
             elif emp_type == "greenhouse":
@@ -339,8 +338,8 @@ def main():
 
             debug_rows = []
 
-        for j in jobs:
-            bucket, reason = bucket_job(j["title"], j.get("location", ""), j.get("description", ""))
+            for j in jobs:
+                bucket, reason = bucket_job(j["title"], j.get("location", ""), j.get("description", ""))
         
             # Always log to debug output
             debug_rows.append({
