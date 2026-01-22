@@ -381,5 +381,8 @@ def main():
 
     # Write debug CSV (always)
     df_debug = pd.DataFrame(all_debug_rows)
+    
     if df_debug.empty:
+        df_debug = pd.DataFrame(columns=["employer", "title", "location", "url", "bucket", "reason"])
+
 
