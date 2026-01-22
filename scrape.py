@@ -320,44 +320,49 @@ def main():
     employers = load_employers()
 
     rows = []
+    all_debug_rows = []
 
     for emp in employers:
         emp_name = emp["name"]
         emp_type = emp["type"]
         emp_url = emp["url"]
 
-            if emp_type == "pinpoint":
-                jobs = scrape_pinpoint(emp_url)
-            elif emp_type == "greenhouse":
-                jobs = scrape_greenhouse(emp_url)
-            elif emp_type == "workday":
-                jobs = scrape_workday(emp_url)
-            else:
-                print(f"Skipping {emp_name}: unsupported type '{emp_type}'")
-                continue
+        # Fetch jobs for this employer
+        if emp_type == "pinpoint":
+            jobs = scrape_pinpoint(emp_url)
+        elif emp_type == "greenhouse":
+            jobs = scrape_greenhouse(emp_url)
+        elif emp_type == "workday":
+            jobs = scrape_workday(emp_url)
+        else:
+            print(f"Skipping {emp_name}: unsupported type '{emp_type}'")
+            continue
 
-            debug_rows = []
+        debug_rows = []
 
-            for j in jobs:
-                bucket, reason = bucket_job(j["title"], j.get("location", ""), j.get("description", ""))
-        
-            # Always log to debug output
+        # Process jobs
+        for j in jobs:
+            bucket, reason = bucket_job(
+                j.get("title", ""),
+                j.get("location", ""),
+                j.get("description", "")
+            )
+
             debug_rows.append({
                 "employer": emp_name,
-                "title": j["title"],
+                "title": j.get("title", ""),
                 "location": j.get("location", ""),
                 "url": j.get("url", ""),
                 "bucket": bucket,
                 "reason": reason,
             })
-        
-            # Only keep HIGH/LESS in the main output
+
             if bucket in ("EXCLUDE", "IGNORE"):
                 continue
-        
+
             rows.append({
                 "employer": emp_name,
-                "title": j["title"],
+                "title": j.get("title", ""),
                 "location": j.get("location", ""),
                 "department": j.get("department", ""),
                 "employment_type": j.get("employment_type", ""),
@@ -365,37 +370,16 @@ def main():
                 "bucket": bucket,
                 "reason": reason,
             })
-        
-        # quick counts in the Actions log
+
+        # Print counts for this employer (shows up in Actions logs)
         counts = {}
         for r in debug_rows:
             counts[r["bucket"]] = counts.get(r["bucket"], 0) + 1
         print(f"{emp_name}: fetched={len(jobs)} counts={counts}")
-        
-        # write/append debug CSV per employer
-        df_debug = pd.DataFrame(debug_rows)
-        # append mode: if file exists, append; else create
-        try:
-            df_existing = pd.read_csv("debug_all_jobs.csv")
-            df_debug = pd.concat([df_existing, df_debug], ignore_index=True)
-        except Exception:
-            pass
-        df_debug.to_csv("debug_all_jobs.csv", index=False)
 
+        all_debug_rows.extend(debug_rows)
 
-        except Exception as e:
-            print(f"{emp_name}: ERROR: {e}")
+    # Write debug CSV (always)
+    df_debug = pd.DataFrame(all_debug_rows)
+    if df_debug.empty:
 
-    df = pd.DataFrame(rows)
-
-    # Always write output so Actions can upload it
-    if df.empty:
-        df = pd.DataFrame(columns=["employer","title","location","department","employment_type","url","bucket","reason"])
-
-    df = df.sort_values(["bucket", "employer", "title"], ascending=[True, True, True])
-    df.to_csv("jobs_output.csv", index=False)
-    print(f"Wrote jobs_output.csv with {len(df)} rows")
-
-
-if __name__ == "__main__":
-    main()
