@@ -337,24 +337,52 @@ def main():
                 print(f"Skipping {emp_name}: unsupported type '{emp_type}'")
                 continue
 
-            for j in jobs:
-                bucket, reason = bucket_job(j["title"], j.get("location", ""), j.get("description", ""))
+            debug_rows = []
 
-                if bucket in ("EXCLUDE", "IGNORE"):
-                    continue
+        for j in jobs:
+            bucket, reason = bucket_job(j["title"], j.get("location", ""), j.get("description", ""))
+        
+            # Always log to debug output
+            debug_rows.append({
+                "employer": emp_name,
+                "title": j["title"],
+                "location": j.get("location", ""),
+                "url": j.get("url", ""),
+                "bucket": bucket,
+                "reason": reason,
+            })
+        
+            # Only keep HIGH/LESS in the main output
+            if bucket in ("EXCLUDE", "IGNORE"):
+                continue
+        
+            rows.append({
+                "employer": emp_name,
+                "title": j["title"],
+                "location": j.get("location", ""),
+                "department": j.get("department", ""),
+                "employment_type": j.get("employment_type", ""),
+                "url": j.get("url", ""),
+                "bucket": bucket,
+                "reason": reason,
+            })
+        
+        # quick counts in the Actions log
+        counts = {}
+        for r in debug_rows:
+            counts[r["bucket"]] = counts.get(r["bucket"], 0) + 1
+        print(f"{emp_name}: fetched={len(jobs)} counts={counts}")
+        
+        # write/append debug CSV per employer
+        df_debug = pd.DataFrame(debug_rows)
+        # append mode: if file exists, append; else create
+        try:
+            df_existing = pd.read_csv("debug_all_jobs.csv")
+            df_debug = pd.concat([df_existing, df_debug], ignore_index=True)
+        except Exception:
+            pass
+        df_debug.to_csv("debug_all_jobs.csv", index=False)
 
-                rows.append({
-                    "employer": emp_name,
-                    "title": j["title"],
-                    "location": j.get("location", ""),
-                    "department": j.get("department", ""),
-                    "employment_type": j.get("employment_type", ""),
-                    "url": j.get("url", ""),
-                    "bucket": bucket,
-                    "reason": reason,
-                })
-
-            print(f"{emp_name}: kept {sum(1 for r in rows if r['employer']==emp_name)} jobs")
 
         except Exception as e:
             print(f"{emp_name}: ERROR: {e}")
